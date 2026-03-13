@@ -1,0 +1,589 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <iomanip> // For formatting
+#include <sstream> // For string stream
+
+using namespace std;
+
+// File paths for storing book list and reader details
+const char* BOOKS_FILE = "books.txt";
+const char* READERS_FILE = "readers.txt";
+
+// Function prototypes
+bool librarianLogin();
+void mainMenu();
+void addBook();
+void displayBookList();
+void searchBookByISBN();
+void searchBook();
+void removeBookFromLibrary(const string& isbn, const string& title); // Update the function to expect both ISBN and title
+void registerReader();
+bool isBookAvailable(const string& isbn);
+void borrowBook();
+void returnBook();
+bool isUserRegistered(const string& userID);
+void addBookToReaderFile(const string& userID, const string& title, const string& isbn);
+
+// Librarian login credentials
+const string LIBRARIAN_USERNAME = "admin";
+const string LIBRARIAN_PASSWORD = "password";
+
+// Function to handle librarian login
+bool librarianLogin() {
+    string username, password;
+    int attempts = 0;
+    while (attempts < 3) {
+        cout << "Enter Librarian Username: ";
+        cin >> username;
+        cout << "Enter Librarian Password: ";
+        cin >> password;
+
+        if (username == LIBRARIAN_USERNAME && password == LIBRARIAN_PASSWORD) {
+            return true; // Login successful
+        } else {
+            cout << "Invalid credentials. Would you like to try again? (y/n): ";
+            char choice;
+            cin >> choice;
+            if (choice != 'y' && choice != 'Y') {
+                return false; // Exit if the user doesn't want to retry
+            }
+        }
+        attempts++;
+    }
+    return false; // Access denied after 3 attempts
+}
+
+// Main menu for library management
+void mainMenu() {
+    int choice;
+    while (true) {
+        cout << "\n--- Library Management Menu ---\n";
+        cout << "1. Add Book\n";
+        cout << "2. Display Book List\n";
+        cout << "3. Search Book by ISBN\n";
+        cout << "4. Borrow Book\n";
+        cout << "5. Return Book\n";
+        cout << "6. Register Reader\n";
+        cout << "7. Search Current Lot\n";
+        cout << "8. Exit\n";
+        cout << "Enter choice: ";
+        cin >> choice;
+
+        switch (choice) {
+            case 1:
+                addBook();
+                break;
+            case 2:
+                displayBookList();
+                break;
+            case 3:
+                searchBookByISBN();
+                break;
+            case 4:
+                borrowBook();
+                break;
+            case 5:
+                returnBook();
+                break;
+            case 6:
+                registerReader();
+                break;
+            case 7:
+                searchBook();
+                break;
+            case 8:
+                return;
+            default:
+                cout << "Invalid choice, please try again.\n";
+        }
+    }
+}
+
+// Function to return a borrowed book and update temp_books.txt
+void returnBook() {
+    string userID;
+    cout << "Enter your User ID: ";
+    cin >> userID;
+
+    // Check if the user is registered
+    if (!isUserRegistered(userID)) {
+        cout << "You are not registered. Please register first.\n";
+        return;
+    }
+
+    string isbn;
+    cout << "Enter ISBN of the book to return: ";
+    cin >> isbn;
+
+    // Open the reader's file to check if the book exists
+    ifstream infile((userID + ".txt").c_str());
+    if (!infile) {
+        cout << "Error opening reader's file.\n";
+        return;
+    }
+
+    string line;
+    bool bookFound = false;
+    string bookTitle;
+
+    // Check if the book is in the reader's file
+    while (getline(infile, line)) {
+        size_t commaPos = line.find(",");
+        if (commaPos != string::npos) {
+            string existingIsbn = line.substr(commaPos + 1);
+            if (existingIsbn == isbn) {
+                bookFound = true;
+                bookTitle = line.substr(0, commaPos); // Extract the book title
+                break;
+            }
+        }
+    }
+
+    infile.close();
+
+    if (!bookFound) {
+        cout << "Book with ISBN " << isbn << " not found in your borrowed books.\n";
+        return;
+    }
+
+    // If book found, remove it from the reader's file
+    ifstream infileReader((userID + ".txt").c_str());
+    ofstream tempFile("temp_reader.txt");
+
+    if (!infileReader || !tempFile) {
+        cout << "Error opening files.\n";
+        return;
+    }
+
+    // Copy all content to temp file except the book to be returned
+    while (getline(infileReader, line)) {
+        size_t commaPos = line.find(",");
+        if (commaPos != string::npos) {
+            string existingIsbn = line.substr(commaPos + 1);
+            if (existingIsbn != isbn) {
+                tempFile << line << endl;
+            }
+        }
+    }
+
+    infileReader.close();
+    tempFile.close();
+
+    // Remove the original reader file and rename the temporary file
+    remove((userID + ".txt").c_str());
+    rename("temp_reader.txt", (userID + ".txt").c_str());
+
+    // Add the returned book back to temp_books.txt (overwrite the file)
+    ifstream booksFile(BOOKS_FILE);
+    ofstream tempBooksFile("temp_books.txt");
+
+    if (!booksFile || !tempBooksFile) {
+        cout << "Error opening books file.\n";
+        return;
+    }
+
+    bool bookAlreadyInTemp = false;
+    string bookLine;
+
+    // Copy all books from books.txt to temp_books.txt
+    while (getline(booksFile, bookLine)) {
+        size_t commaPos = bookLine.find(",");
+        if (commaPos != string::npos) {
+            string bookIsbn = bookLine.substr(commaPos + 1);
+            if (bookIsbn == isbn) {
+                // This is the returned book, include it in temp_books.txt
+                tempBooksFile << bookTitle << "," << isbn << endl;
+                bookAlreadyInTemp = true;
+            } else {
+                tempBooksFile << bookLine << endl;
+            }
+        }
+    }
+
+    // If the book wasn't added yet, it was already in temp_books.txt, so we just need to add it
+    if (!bookAlreadyInTemp) {
+        tempBooksFile << bookTitle << "," << isbn << endl;
+    }
+
+    booksFile.close();
+    tempBooksFile.close();
+
+    cout << "Book returned successfully: " << bookTitle << " (ISBN: " << isbn << ")\n";
+}
+
+
+// Function to add a new book to the library file
+void addBook() {
+    string title, isbn;
+    cout << "Enter Book Title: ";
+    cin.ignore();
+    getline(cin, title);
+    cout << "Enter ISBN: ";
+    cin >> isbn;
+
+    ofstream outfile(BOOKS_FILE, ios::app); // Open in append mode
+    if (outfile) {
+        outfile << title << "," << isbn << endl;
+        cout << "Book added successfully.\n";
+    } else {
+        cout << "Error opening file.\n";
+    }
+}
+
+// Function to display the book list by reading from the file
+void displayBookList() {
+    ifstream infile(BOOKS_FILE);
+    if (infile) {
+        string line;
+        cout << "\n--- Book List ---\n";
+        bool hasBooks = false;
+        while (getline(infile, line)) {
+            size_t commaPos = line.find(",");
+            if (commaPos != string::npos) {
+                string title = line.substr(0, commaPos);
+                string isbn = line.substr(commaPos + 1);
+                cout << "Title: " << title << ", ISBN: " << isbn << endl;
+                hasBooks = true;
+            }
+        }
+
+        if (!hasBooks) {
+            cout << "No books found in the library.\n";
+        }
+    } else {
+        cout << "Error opening file or file does not exist.\n";
+    }
+}
+
+// Function to search for a book by ISBN and display the title if found
+void searchBookByISBN() {
+    string isbnToSearch;
+    cout << "Enter ISBN to search: ";
+    cin >> isbnToSearch;
+
+    ifstream infile(BOOKS_FILE);
+    bool bookFound = false;
+
+    if (infile) {
+        string line;
+        while (getline(infile, line)) {
+            size_t commaPos = line.find(",");
+            if (commaPos != string::npos) {
+                string title = line.substr(0, commaPos);
+                string isbn = line.substr(commaPos + 1);
+
+                if (isbn == isbnToSearch) {
+                    cout << "Book found: Title - " << title << endl;
+                    bookFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!bookFound) {
+            cout << "Book not found with ISBN " << isbnToSearch << ".\n";
+        }
+    } else {
+        cout << "Error opening file or file does not exist.\n";
+    }
+}
+
+// Function to register a new reader
+void registerReader() {
+    string fullName, contact;
+    cout << "Enter Full Name: ";
+    cin.ignore();
+    getline(cin, fullName);
+    cout << "Enter Contact Info: ";
+    getline(cin, contact);
+
+    // Extract the first name
+    size_t spacePos = fullName.find(" ");
+    string firstName = (spacePos != string::npos) ? fullName.substr(0, spacePos) : fullName;
+
+    // Generate User ID
+    string userID = firstName + "0001"; // Start with 0001
+    int userCount = 1;
+
+    // Check for existing users and generate a unique ID
+    ifstream infile(READERS_FILE);
+    string line;
+    bool userExists = false;
+
+    while (getline(infile, line)) {
+        size_t commaPos = line.find(",");
+        if (commaPos != string::npos) {
+            string existingUserID = line.substr(0, commaPos);
+            if (existingUserID == userID) {
+                userExists = true;
+                break;
+            }
+        }
+    }
+
+    // If a user with the generated ID already exists, increment the number
+    while (userExists) {
+        userCount++;
+
+        // Generate a zero-padded userID
+        stringstream ss;
+        ss << firstName << setw(4) << setfill('0') << userCount; // Format as 0001, 0002, etc.
+        userID = ss.str();
+
+        userExists = false; // Reset check
+        infile.clear(); // Clear the EOF flag
+        infile.seekg(0); // Go back to the start of the file
+
+        while (getline(infile, line)) {
+            size_t commaPos = line.find(",");
+            if (commaPos != string::npos) {
+                string existingUserID = line.substr(0, commaPos);
+                if (existingUserID == userID) {
+                    userExists = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Write the new user data to the file
+    ofstream outfile(READERS_FILE, ios::app);
+    if (outfile) {
+        outfile << userID << "," << fullName << "," << contact << endl;
+        cout << "Reader registered successfully: " << fullName << " with User ID: " << userID << endl;
+    } else {
+        cout << "Error opening file.\n";
+    }
+}
+
+// Function to check if a book is available by ISBN
+bool isBookAvailable(const string& isbn) {
+    ifstream infile(BOOKS_FILE);
+    if (infile) {
+        string line;
+        while (getline(infile, line)) {
+            size_t commaPos = line.find(",");
+            if (commaPos != string::npos) {
+                string existingIsbn = line.substr(commaPos + 1);
+                if (existingIsbn == isbn) {
+                    return true; // Book is available
+                }
+            }
+        }
+    }
+    return false; // Book not found
+}
+
+// Function to check if a user is registered
+bool isUserRegistered(const string& userID) {
+    ifstream infile(READERS_FILE);
+    if (infile) {
+        string line;
+        while (getline(infile, line)) {
+            size_t commaPos = line.find(",");
+            if (commaPos != string::npos) {
+                string existingUserID = line.substr(0, commaPos);
+                if (existingUserID == userID) {
+                    return true; // User is registered
+                }
+            }
+        }
+    }
+    return false; // User not found
+}
+
+void borrowBook() {
+    string userID;
+    cout << "Enter your User ID: ";
+    cin >> userID;
+
+    // Check if the user is registered
+    if (!isUserRegistered(userID)) {
+        char choice;
+        cout << "You are not registered. Would you like to register now? (y/n): ";
+        cin >> choice;
+        if (choice == 'y' || choice == 'Y') {
+            registerReader(); // Call the registration function
+        } else {
+            cout << "Returning to main menu.\n";
+            return; // Return to main menu
+        }
+    }
+
+    string isbn;
+    cout << "Enter ISBN of the book to borrow: ";
+    cin >> isbn;
+
+    if (!isBookAvailable(isbn)) {
+        cout << "Book is not available.\n";
+        return;
+    }
+
+    string title;
+    ifstream infile(BOOKS_FILE);
+    bool bookFound = false;
+    while (getline(infile, title)) {
+        size_t commaPos = title.find(",");
+        if (commaPos != string::npos) {
+            string bookIsbn = title.substr(commaPos + 1);
+            if (bookIsbn == isbn) {
+                bookFound = true;
+                title = title.substr(0, commaPos); // Extract the title part
+                break;
+            }
+        }
+    }
+
+    if (!bookFound) {
+        cout << "Book not found.\n";
+        return;
+    }
+
+    char confirmation;
+    cout << "Is this the book you want to borrow?\n";
+    cout << "Title: " << title << "\nISBN: " << isbn << "\n";
+    cout << "Confirm borrowing? (y/n): ";
+    cin >> confirmation;
+
+    if (confirmation == 'y' || confirmation == 'Y') {
+        // Check if book is already borrowed
+        ifstream readerFile((userID + ".txt").c_str());
+
+        bool alreadyBorrowed = false;
+        string line;
+        while (getline(readerFile, line)) {
+            if (line.find(isbn) != string::npos) {
+                alreadyBorrowed = true;
+                break;
+            }
+        }
+
+        if (alreadyBorrowed) {
+            cout << "You have already borrowed this book.\n";
+            return;
+        }
+
+        removeBookFromLibrary(isbn, title);
+        addBookToReaderFile(userID, title, isbn);
+        cout << "Book borrowed successfully!\n";
+    }
+}
+
+
+
+// Function to remove a book from the library based on ISBN and title
+void removeBookFromLibrary(const string& isbn, const string& title) {
+    ifstream infile(BOOKS_FILE);
+    ofstream tempFile("temp_books.txt"); // Temporary file for filtered books
+    string line;
+
+    if (!infile || !tempFile) {
+        cout << "Error opening file.\n";
+        return;
+    }
+
+    while (getline(infile, line)) {
+        size_t commaPos = line.find(",");
+        if (commaPos != string::npos) {
+            string existingIsbn = line.substr(commaPos + 1);
+            if (existingIsbn != isbn) {
+                tempFile << line << endl; // Write all books except the borrowed one
+            }
+        }
+    }
+
+    infile.close();
+    tempFile.close();
+
+    // Remove the old book list and rename the temp file
+    remove(BOOKS_FILE);
+    rename("temp_books.txt", BOOKS_FILE);
+}
+
+
+// Function to search for a book in the temporary book file
+void searchBook() {
+    string keyword;
+    cout << "Enter the ISBN to search the book's  : ";
+    cin >> keyword;
+
+    ifstream infile("temp_books.txt");
+    string line;
+    bool found = false;
+
+    if (!infile) {
+        cout << "Error opening file.\n";
+        return;
+    }
+
+    // Search for the keyword in each book entry
+    while (getline(infile, line)) {
+        size_t commaPos = line.find(",");
+        if (commaPos != string::npos) {
+            string title = line.substr(0, commaPos);
+            string isbn = line.substr(commaPos + 1);
+
+            // Check if the keyword matches either the title or ISBN
+            if (title.find(keyword) != string::npos || isbn.find(keyword) != string::npos) {
+                cout << "Book found: " << title << " (ISBN: " << isbn << ")\n";
+                found = true;
+            }
+        }
+    }
+
+    if (!found) {
+        cout << "No books found matching the keyword.\n";
+    }
+
+    infile.close();
+}
+
+
+
+// Function to add borrowed book details to the reader's file
+void addBookToReaderFile(const string& userID, const string& title, const string& isbn) {
+    // Open the reader's file for appending
+    ofstream readerFile((userID + ".txt").c_str(), ios::app); // Use c_str() here
+    if (readerFile) {
+        readerFile << title << "," << isbn << endl;
+    } else {
+        cout << "Error opening reader file.\n";
+    }
+}
+
+void createTempBooksFileIfNeeded() {
+    ifstream booksFile(BOOKS_FILE);
+    ofstream tempBooksFile("temp_books.txt");
+
+    // Check if temp_books.txt already exists
+    if (booksFile && !tempBooksFile) {
+        // If books.txt exists, but temp_books.txt doesn't, copy content
+        string line;
+        while (getline(booksFile, line)) {
+            tempBooksFile << line << endl;
+        }
+
+
+    }
+
+    booksFile.close();
+    tempBooksFile.close();
+}
+
+
+
+
+int main() {
+    if (librarianLogin()) {
+        createTempBooksFileIfNeeded();
+        mainMenu();
+    } else {
+        cout << "Access Denied. Exiting.\n";
+    }
+    cout<<"\n";
+    cout<<"****Have a Nice Day****";
+    cout<<"\n\n";
+    return 0;
+}
+

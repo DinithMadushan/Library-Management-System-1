@@ -1,0 +1,15 @@
+# depslib dependency file v1.0
+1730912151 source:c:\users\dell\onedrive\desktop\library management system 01\main.cpp
+	<iostream>
+	<fstream>
+	<string>
+	<iomanip>
+	<sstream>
+
+1730912151 source:c:\users\dell\onedrive\desktop\c++\project y1s1\library management system 01\main.cpp
+	<iostream>
+	<fstream>
+	<string>
+	<iomanip>
+	<sstream>
+

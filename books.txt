@@ -1,0 +1,11 @@
+Harry Potter,234
+Alice's Adventures in Wonderland,123
+The Adventures of Tom Sawyer,721
+A Tale of Two Cities,456
+The Adventures of Huckleberry Finn,567	
+The Adventures of Tom Sawyer,666	
+A Christmas Carol,270	
+David Copperfield,244	
+A Tale of Two Cities,500	
+Little Women,211
+Great Expectations,265
