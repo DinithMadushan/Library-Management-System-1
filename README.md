@@ -16,18 +16,17 @@ A comprehensive C++ command-line application for managing library operations inc
 
 - 🔐 **Librarian Authentication**: Secure login system with username and password verification
 - 📚 **Book Management**:
-  - ➕ Add new books to the library inventory
-  - 👁️ Display complete book list with details
+  - ➕ Add new books to the library with ISBN
+  - 👁️ Display complete book inventory
   - 🔍 Search books by ISBN
-  - 📦 Search books in current inventory
-  - 🗑️ Remove books from the library
+  - 📦 Search within current library lot
 - 👥 **Reader Management**:
-  - 📝 Register new library members
-  - 📋 Track reader information and borrowed books
+  - 📝 Register new library members with auto-generated User IDs
+  - 📋 Track reader information
 - 🔄 **Book Borrowing System**:
-  - 📥 Borrow available books
-  - 📤 Return borrowed books to the library
-  - ✅ Automatic availability tracking
+  - 📥 Borrow available books from inventory
+  - 📤 Return borrowed books to library
+  - ✅ Automatic availability tracking via file management
 
 ## 🖥️ System Requirements
 
@@ -87,29 +86,38 @@ g++ -o library_system.exe main.cpp
 
 | #️⃣ Option | 🎯 Feature | 📝 Description |
 |--------|---------|-------------|
-| 1 | ➕ Add Book | Add a new book to the library inventory |
-| 2 | 👁️ Display Book List | View all books currently in the library |
-| 3 | 🔍 Search Book by ISBN | Find a specific book using its ISBN number |
-| 4 | 📥 Borrow Book | Borrow an available book from the library |
+| 1 | ➕ Add Book | Add a new book with title and ISBN |
+| 2 | 👁️ Display Book List | View all available books in inventory |
+| 3 | 🔍 Search Book by ISBN | Find a specific book using ISBN |
+| 4 | 📥 Borrow Book | Borrow an available book after registration |
 | 5 | 📤 Return Book | Return a previously borrowed book |
-| 6 | 📝 Register Reader | Register a new library member |
-| 7 | 📦 Search Current Lot | Search within the current book inventory |
+| 6 | 📝 Register Reader | Register as a library member |
+| 7 | 📦 Search Current Lot | Search within current book inventory |
 | 8 | 🚪 Exit | Close the application |
 
 ## 📝 File Format
 
 ### 📚 books.txt
-Stores book information with the following format:
+Stores available books in the inventory with comma-separated values:
 ```
-ISBN | Title | Author | Quantity | Available
-978-0-13-110362-7 | The C++ Programming Language | Bjarne Stroustrup | 5 | 3
+Title,ISBN
+The C++ Programming Language,978-0-13-110362-7
+Modern C++ Design,978-0-201-70431-8
 ```
 
 ### 👥 readers.txt
-Stores reader information and their borrowed books:
+Stores registered reader information:
 ```
-UserID | Name | Email | Borrowed Books
-R001 | John Doe | john@example.com | Book Title (ISBN)
+UserID,FullName,ContactInfo
+John0001,John Doe,john.doe@email.com
+Jane0001,Jane Smith,jane.smith@email.com
+```
+
+### 📖 Individual Reader Files (UserID.txt)
+Each registered reader has their own file storing borrowed books:
+```
+BookTitle,ISBN
+The C++ Programming Language,978-0-13-110362-7
 ```
 
 ## 🔐 Login Credentials
@@ -123,19 +131,20 @@ R001 | John Doe | john@example.com | Book Title (ISBN)
 ## 🎯 Features in Detail
 
 ### 📚 Book Management
-- ➕ **Add Books**: Input ISBN, title, author, and quantity
-- 🔍 **Search Functionality**: Multiple search options (ISBN, title, or full inventory)
-- ✅ **Availability Tracking**: System automatically tracks book availability
-- 🗑️ **Remove Books**: Manage inventory by removing out-of-stock items
+- ➕ **Add Books**: Add books by entering title and ISBN
+- 🔍 **Search Functionality**: Search by ISBN or browse entire inventory
+- ✅ **Availability Tracking**: Available books tracked in books.txt; borrowed books stored in reader files
+- 📋 **Display Books**: View all current library inventory
 
 ### 👥 Reader System
-- 📝 **Registration**: New readers can register with their details
-- 📋 **Borrow Tracking**: System maintains records of borrowed books per reader
-- 🔄 **Return Management**: Streamlined return process that updates availability
+- 📝 **Registration**: New readers register with name and contact info; auto-generated User IDs
+- 📋 **Borrow Tracking**: Each reader has a personal file tracking their borrowed books
+- 🔄 **Return Management**: Returns move books from reader files back to inventory
 
 ### 💾 Data Persistence
-- 📄 All book and reader data is stored in text files
-- ⚡ Changes persist between application sessions
+- 📄 Books stored in books.txt; readers in readers.txt
+- 👤 Individual reader files (UserID.txt) track borrowed books
+- ⚡ Changes persist between sessions
 - 🚀 No database server required
 
 ## 💡 Development Notes
