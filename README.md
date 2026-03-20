@@ -154,14 +154,32 @@ The C++ Programming Language,978-0-13-110362-7
 - ⌨️ Console-based user interface for straightforward interaction
 - 🧩 Modular function design for easy maintenance and extension
 
+## 🌐 React Frontend (New!)
+
+A modern web-based UI built with React + Tailwind CSS (zero setup, CDN). Mirrors all C++ features.
+
+### 🚀 Frontend Setup & Usage
+1. Open `frontend/index.html` in any browser.
+2. **Login**: `admin` / `password`
+3. **Upload**: Drag books.txt, readers.txt, temp_books.txt to load data.
+4. Manage: Add books/readers, borrow/return (select user/book), search lot.
+5. **Download**: Updated files ready for C++ or backup.
+
+**Demo**: `start frontend/index.html`
+
+### Features
+- 📱 Responsive dashboard/tabs
+- 📁 File upload/download integration
+- 🔄 Real-time borrow/return (state + CSV export)
+- 🎨 Modern UI (Tailwind)
+
+Compatible with C++ data files!
+
 ## 🚀 Future Enhancements
 
 - 🗄️ Database integration (SQLite/MySQL)
-- 🖼️ GUI using Qt or wxWidgets
-- 📧 Email notifications for overdue books
-- 💰 Fine calculation system
-- 🔎 User-friendly search filters
-- 📤 Export/Import functionality
+- 🔄 Full-stack API bridge (Node/Express?)
+- 📱 PWA/offline support
 
 ## License
 

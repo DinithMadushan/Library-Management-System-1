@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Library Management System - Frontend</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        const parseCSV = (text) => {
+            return text.split('\n').filter(line => line.trim()).map(line => {
+                const [first, ...rest] = line.split(',');
+                return {
+                    title: first?.trim() || '',
+                    isbn: rest.join(',').trim() || ''
+                };
+            }).filter(item => item.title && item.isbn);
+        };
+
+        const parseReadersCSV = (text) => {
+            return text.split('\n').filter(line => line.trim()).map(line => {
+                const parts = line.split(',');
+                return {
+                    userID: parts[0]?.trim() || '',
+                    fullName: parts[1]?.trim() || '',
+                    contact: parts.slice(2).join(',').trim() || ''
+                };
+            }).filter(item => item.userID);
+        };
+
+        const downloadCSV = (filename, data) => {
+            const csv = data.map(item => `${item.title || item.fullName},${item.isbn || item.contact}`).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        const genUserID = (fullName, existingReaders) => {
+            const firstName = fullName.split(' ')[0];
+            const ids = existingReaders.map(r => r.userID.replace(firstName, ''));
+            const maxNum = ids.length ? Math.max(...ids.map(n => parseInt(n) || 0)) : 0;
+            return `${firstName}${String(maxNum + 1).padStart(4, '0')}`;
+        };
+
+        const App = () => {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [activeTab, setActiveTab] = useState('books');
+            const [books, setBooks] = useState([]);
+            const [tempBooks, setTempBooks] = useState([]);
+            const [readers, setReaders] = useState([]);
+            const [selectedUserID, setSelectedUserID] = useState('');
+            const [userBorrowed, setUserBorrowed] = useState([]);
+            const [searchQuery, setSearchQuery] = useState('');
+
+            const fileInputs = useRef({});
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (username === 'admin' && password === 'password') {
+                    setIsLoggedIn(true);
+                } else {
+                    alert('Invalid credentials!');
+                }
+            };
+
+            const handleUpload = (e, type) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        if (type === 'readers') {
+                            setReaders(parseReadersCSV(event.target.result));
+                        } else if (type === 'books') {
+                            setBooks(parseCSV(event.target.result));
+                            setTempBooks(parseCSV(event.target.result)); // Initial copy
+                        } else if (type === 'tempBooks') {
+                            setTempBooks(parseCSV(event.target.result));
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+
+            const addBook = (title, isbn) => {
+                const newBook = { title, isbn };
+                setBooks([...books, newBook]);
+                setTempBooks([...tempBooks, newBook]);
+            };
+
+            const registerReader = (fullName, contact) => {
+                if (!fullName || !contact) return;
+                const newID = genUserID(fullName, readers);
+                const newReader = { userID: newID, fullName, contact };
+                setReaders([...readers, newReader]);
+            };
+
+            const loadUserBorrowed = (userID) => {
+                // Simulate load: In real, upload userID.txt
+                setSelectedUserID(userID);
+                setUserBorrowed([]); // Load logic here
+            };
+
+            const borrowBook = (isbn) => {
+                const bookIndex = tempBooks.findIndex(b => b.isbn === isbn);
+                if (bookIndex === -1) return alert('Book not available');
+                const book = tempBooks[bookIndex];
+                const newTemp = tempBooks.filter((_, i) => i !== bookIndex);
+                setTempBooks(newTemp);
+                setUserBorrowed([...userBorrowed, book]);
+            };
+
+            const returnBook = (isbn) => {
+                const bookIndex = userBorrowed.findIndex(b => b.isbn === isbn);
+                if (bookIndex === -1) return alert('Book not found');
+                const book = userBorrowed[bookIndex];
+                const newUserBorrowed = userBorrowed.filter((_, i) => i !== bookIndex);
+                setUserBorrowed(newUserBorrowed);
+                setTempBooks([...tempBooks, book]);
+            };
+
+            const filteredTempBooks = tempBooks.filter(book =>
+                book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                book.isbn.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+
+            if (!isLoggedIn) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+                            <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Library Login</h1>
+                            <form onSubmit={handleLogin}>
+                                <input
+                                    type="text"
+                                    placeholder="Username"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                <input
+                                    type="password"
+                                    placeholder="Password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg mb-6 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                <button
+                                    type="submit"
+                                    className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+                                >
+                                    Login
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen flex">
+                    {/* Sidebar */}
+                    <div className="w-64 bg-white shadow-lg">
+                        <div className="p-6">
+                            <h2 className="text-xl font-bold text-gray-800 mb-6">Dashboard</h2>
+                            <nav className="space-y-2">
+                                {['books', 'readers', 'borrow', 'search'].map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`w-full text-left p-3 rounded-lg transition ${
+                                            activeTab === tab
+                                                ? 'bg-blue-100 text-blue-700 font-semibold'
+                                                : 'text-gray-600 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        {tab === 'books' && '📚 Books'}
+                                        {tab === 'readers' && '👥 Readers'}
+                                        {tab === 'borrow' && '🔄 Borrow/Return'}
+                                        {tab === 'search' && '🔍 Search Lot'}
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1 p-8 overflow-auto">
+                        <div className="flex justify-between items-center mb-8">
+                            <h1 className="text-3xl font-bold text-gray-800 capitalize">{activeTab}</h1>
+                            <button
+                                onClick={() => setIsLoggedIn(false)}
+                                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+                            >
+                                Logout
+                            </button>
+                        </div>
+
+                        {/* Upload Section */}
+                        <div className="bg-blue-50 p-6 rounded-xl mb-8">
+                            <h3 className="font-semibold text-lg mb-4">📁 Upload Data Files</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">books.txt</label>
+                                    <input type="file" ref={el => fileInputs.current.books = el} onChange={(e) => handleUpload(e, 'books')} className="w-full p-2 border rounded-lg" accept=".txt" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">readers.txt</label>
+                                    <input type="file" ref={el => fileInputs.current.readers = el} onChange={(e) => handleUpload(e, 'readers')} className="w-full p-2 border rounded-lg" accept=".txt" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">temp_books.txt</label>
+                                    <input type="file" ref={el => fileInputs.current.tempBooks = el} onChange={(e) => handleUpload(e, 'tempBooks')} className="w-full p-2 border rounded-lg" accept=".txt" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {activeTab === 'books' && (
+                            <div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                    <div className="bg-white p-6 rounded-xl shadow">
+                                        <h3 className="font-semibold mb-4">➕ Add Book</h3>
+                                        <div className="space-y-3">
+                                            <input id="bookTitle" placeholder="Book Title" className="w-full p-3 border rounded-lg" />
+                                            <input id="bookISBN" placeholder="ISBN" className="w-full p-3 border rounded-lg" />
+                                            <button
+                                                onClick={() => {
+                                                    const title = document.getElementById('bookTitle').value;
+                                                    const isbn = document.getElementById('bookISBN').value;
+                                                    if (title && isbn) {
+                                                        addBook(title, isbn);
+                                                        document.getElementById('bookTitle').value = '';
+                                                        document.getElementById('bookISBN').value = '';
+                                                    }
+                                                }}
+                                                className="w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700"
+                                            >
+                                                Add Book
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <button
+                                            onClick={() => downloadCSV('books.txt', books)}
+                                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 w-full"
+                                        >
+                                            📥 Download books.txt
+                                        </button>
+                                        <button
+                                            onClick={() => downloadCSV('temp_books.txt', tempBooks)}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 w-full"
+                                        >
+                                            📥 Download temp_books.txt
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-xl shadow overflow-hidden">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="p-4 text-left font-semibold text-gray-700">Title</th>
+                                                <th className="p-4 text-left font-semibold text-gray-700">ISBN</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {books.map((book, i) => (
+                                                <tr key={i} className="border-t hover:bg-gray-50">
+                                                    <td className="p-4">{book.title}</td>
+                                                    <td className="p-4 font-mono">{book.isbn}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {books.length === 0 && <p className="p-8 text-gray-500 text-center">No books. Upload or add some.</p>}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'readers' && (
+                            <div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                    <div className="bg-white p-6 rounded-xl shadow">
+                                        <h3 className="font-semibold mb-4">📝 Register Reader</h3>
+                                        <div className="space-y-3">
+                                            <input id="readerName" placeholder="Full Name" className="w-full p-3 border rounded-lg" />
+                                            <input id="readerContact" placeholder="Contact" className="w-full p-3 border rounded-lg" />
+                                            <button
+                                                onClick={() => {
+                                                    const name = document.getElementById('readerName').value;
+                                                    const contact = document.getElementById('readerContact').value;
+                                                    if (name && contact) {
+                                                        registerReader(name, contact);
+                                                        document.getElementById('readerName').value = '';
+                                                        document.getElementById('readerContact').value = '';
+                                                    }
+                                                }}
+                                                className="w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700"
+                                            >
+                                                Register
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => downloadCSV('readers.txt', readers)}
+                                        className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 self-end"
+                                    >
+                                        📥 Download readers.txt
+                                    </button>
+                                </div>
+                                <div className="bg-white rounded-xl shadow overflow-hidden">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="p-4 text-left font-semibold">User ID</th>
+                                                <th className="p-4 text-left font-semibold">Name</th>
+                                                <th className="p-4 text-left font-semibold">Contact</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {readers.map((r, i) => (
+                                                <tr key={i} className="border-t hover:bg-gray-50" onClick={() => loadUserBorrowed(r.userID)}>
+                                                    <td className="p-4 font-mono">{r.userID}</td>
+                                                    <td className="p-4">{r.fullName}</td>
+                                                    <td className="p-4">{r.contact}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {readers.length === 0 && <p className="p-8 text-gray-500 text-center">No readers. Upload or register.</p>}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'borrow' && (
+                            <div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                                    <div className="bg-white p-6 rounded-xl shadow">
+                                        <h3 className="font-semibold mb-4">📥 Borrow Book</h3>
+                                        <select onChange={(e) => setSelectedUserID(e.target.value)} className="w-full p-3 border rounded-lg mb-3">
+                                            <option value="">Select User ID</option>
+                                            {readers.map(r => <option key={r.userID} value={r.userID}>{r.userID}</option>)}
+                                        </select>
+                                        <select id="borrowISBN" className="w-full p-3 border rounded-lg mb-3">
+                                            <option value="">Select Available ISBN</option>
+                                            {tempBooks.map(b => <option key={b.isbn} value={b.isbn}>{b.isbn} - {b.title}</option>)}
+                                        </select>
+                                        <button
+                                            onClick={() => {
+                                                const isbn = document.getElementById('borrowISBN').value;
+                                                if (selectedUserID && isbn) borrowBook(isbn);
+                                            }}
+                                            className="w-full bg-orange-600 text-white p-3 rounded-lg hover:bg-orange-700"
+                                        >
+                                            Borrow
+                                        </button>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-xl shadow">
+                                        <h3 className="font-semibold mb-4">📤 Return Book</h3>
+                                        <p className="text-sm text-gray-600 mb-3">Selected User: <strong>{selectedUserID || 'None'}</strong></p>
+                                        <select id="returnISBN" className="w-full p-3 border rounded-lg mb-3">
+                                            <option value="">Select Borrowed ISBN</option>
+                                            {userBorrowed.map(b => <option key={b.isbn} value={b.isbn}>{b.isbn} - {b.title}</option>)}
+                                        </select>
+                                        <button
+                                            onClick={() => {
+                                                const isbn = document.getElementById('returnISBN').value;
+                                                if (isbn) returnBook(isbn);
+                                            }}
+                                            className="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700"
+                                        >
+                                            Return
+                                        </button>
+                                    </div>
+                                </div>
+                                {selectedUserID && (
+                                    <div>
+                                        <h4 className="font-semibold mb-4">Borrowed Books for {selectedUserID}</h4>
+                                        <div className="bg-white rounded-xl shadow overflow-hidden mb-4">
+                                            <table className="w-full">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="p-4 text-left font-semibold">Title</th>
+                                                        <th className="p-4 text-left font-semibold">ISBN</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {userBorrowed.map((book, i) => (
+                                                        <tr key={i} className="border-t hover:bg-gray-50">
+                                                            <td className="p-4">{book.title}</td>
+                                                            <td className="p-4 font-mono">{book.isbn}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <button
+                                            onClick={() => downloadCSV(`${selectedUserID}.txt`, userBorrowed)}
+                                            className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
+                                        >
+                                            📥 Download {selectedUserID}.txt
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'search' && (
+                            <div>
+                                <div className="bg-white p-6 rounded-xl shadow mb-8">
+                                    <h3 className="font-semibold mb-4">🔍 Search Current Lot</h3>
+                                    <input
+                                        placeholder="Search by title or ISBN..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full max-w-md p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <div className="bg-white rounded-xl shadow overflow-hidden">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="p-4 text-left font-semibold">Title</th>
+                                                <th className="p-4 text-left font-semibold">ISBN</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredTempBooks.map((book, i) => (
+                                                <tr key={i} className="border-t hover:bg-gray-50">
+                                                    <td className="p-4">{book.title}</td>
+                                                    <td className="p-4 font-mono">{book.isbn}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {filteredTempBooks.length === 0 && (
+                                        <p className="p-8 text-gray-500 text-center">
+                                            {searchQuery ? 'No matches.' : 'No available books. Upload temp_books.txt.'}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
