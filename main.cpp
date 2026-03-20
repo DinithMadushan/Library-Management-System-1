@@ -209,6 +209,10 @@ void returnBook() {
     booksFile.close();
     tempBooksFile.close();
 
+    // Replace the old books file with the updated temp books file
+    remove(BOOKS_FILE);
+    rename("temp_books.txt", BOOKS_FILE);
+
     cout << "Book returned successfully: " << bookTitle << " (ISBN: " << isbn << ")\n";
 }
 
@@ -405,6 +409,8 @@ void borrowBook() {
         cin >> choice;
         if (choice == 'y' || choice == 'Y') {
             registerReader(); // Call the registration function
+            cout << "Please start the borrow process again with your newly generated User ID.\n";
+            return; // Return to main menu so they can use the valid ID
         } else {
             cout << "Returning to main menu.\n";
             return; // Return to main menu
@@ -502,13 +508,13 @@ void removeBookFromLibrary(const string& isbn, const string& title) {
 }
 
 
-// Function to search for a book in the temporary book file
+// Function to search for a book in the current lot (books file)
 void searchBook() {
     string keyword;
     cout << "Enter the ISBN to search the book's availability : ";
     cin >> keyword;
 
-    ifstream infile("temp_books.txt");
+    ifstream infile(BOOKS_FILE);
     string line;
     bool found = false;
 
@@ -553,18 +559,22 @@ void addBookToReaderFile(const string& userID, const string& title, const string
 }
 
 void createTempBooksFileIfNeeded() {
+    // Check if temp_books.txt already exists
+    ifstream checkTemp("temp_books.txt");
+    if (checkTemp) {
+        checkTemp.close();
+        return;
+    }
+
     ifstream booksFile(BOOKS_FILE);
     ofstream tempBooksFile("temp_books.txt");
 
-    // Check if temp_books.txt already exists
-    if (booksFile && !tempBooksFile) {
+    if (booksFile && tempBooksFile) {
         // If books.txt exists, but temp_books.txt doesn't, copy content
         string line;
         while (getline(booksFile, line)) {
             tempBooksFile << line << endl;
         }
-
-
     }
 
     booksFile.close();
@@ -586,4 +596,3 @@ int main() {
     cout<<"\n\n";
     return 0;
 }
-
